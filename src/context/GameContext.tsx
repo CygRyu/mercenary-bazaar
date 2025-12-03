@@ -811,28 +811,40 @@ interface GameContextValue {
 
 const GameContext = createContext<GameContextValue | null>(null);
 
-export function GameProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(gameReducer, null, createInitialState);
-
-  // Load save on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        dispatch({ type: 'LOAD_SAVE', state: parsed });
+function loadSavedState(): GameState {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Basic validation - ensure it has required fields
+      if (parsed && typeof parsed.gold === 'number' && Array.isArray(parsed.roster)) {
+        return parsed;
       }
-    } catch (e) {
-      console.error('Failed to load save:', e);
     }
-  }, []);
+  } catch (e) {
+    console.error('Failed to load save:', e);
+  }
+  return createInitialState();
+}
 
-  // Auto-save
+export function GameProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(gameReducer, null, loadSavedState);
+
+  // Auto-save every 5 seconds
   useEffect(() => {
     const timer = setInterval(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }, 5000);
     return () => clearInterval(timer);
+  }, [state]);
+
+  // Save on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [state]);
 
   // Update timers
