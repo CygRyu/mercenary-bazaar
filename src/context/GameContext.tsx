@@ -56,6 +56,7 @@ function createInitialState(): GameState {
     roster: [starterMerc],
     rosterSlots: 15,
     questSlots: 3,
+    questSlotExpansions: 0,
     activeQuests: [],
     fatigueMultiplier: 1.0,
     lastPullTime: null,
@@ -68,6 +69,7 @@ function createInitialState(): GameState {
     newPlayerPhase: { active: true, pullsRemaining: 3 },
     dailyDiscountUsed: false,
     lastDailyReset: now,
+    lastWagePayment: now,
     emergencyLiquidationAvailable: false,
     lastEmergencyUse: null,
     bankruptcyResetUsed: false,
@@ -117,6 +119,9 @@ type GameAction =
   | { type: 'BANKRUPTCY_RESET' }
   | { type: 'LOAD_SAVE'; state: GameState }
   | { type: 'EXPAND_ROSTER' }
+  | { type: 'EXPAND_QUEST_SLOTS' }
+  | { type: 'RENAME_MERCENARY'; mercenaryId: string; newName: string }
+  | { type: 'RESET_GAME' }
   | { type: 'CLAIM_ACHIEVEMENT'; achievementId: string };
 
 function generateMercenaryName(): string {
@@ -230,6 +235,19 @@ function generateTraits(rarity: Rarity): Trait[] {
   }
 
   return traits;
+}
+
+function calculateMercWage(merc: Mercenary): number {
+  // Wage based on total stats: ~1g per stat point per day
+  const totalStats = merc.stats.efficiency + merc.stats.resilience + merc.stats.skill;
+  const rarityMultiplier: Record<Rarity, number> = {
+    common: 0.5,
+    uncommon: 0.7,
+    rare: 1.0,
+    epic: 1.3,
+    legendary: 1.5,
+  };
+  return Math.floor(totalStats * rarityMultiplier[merc.rarity]);
 }
 
 function calculateLevel(stats: { efficiency: number; resilience: number; skill: number }): number {
@@ -675,7 +693,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const { marketState, marketStateEndTime } = updateMarketState(state);
 
       // Update mercenary statuses
-      const updatedRoster = state.roster.map(merc => {
+      let updatedRoster = state.roster.map(merc => {
         if (merc.status === 'injured' && merc.injuryRecoveryTime && now >= merc.injuryRecoveryTime) {
           return { ...merc, status: 'available' as const, injuryRecoveryTime: null };
         }
@@ -685,17 +703,52 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         return merc;
       });
 
-      // Check completed quests
-      const completedQuests = state.activeQuests.filter(q => now >= q.endTime);
+      // Handle daily wage payment
+      let newGold = state.gold;
+      let wagesPaid = false;
+      const lastWageDay = new Date(state.lastWagePayment).toDateString();
+      
+      if (today !== lastWageDay) {
+        // Calculate total wages
+        const aliveMercs = updatedRoster.filter(m => m.status !== 'dead');
+        const totalWages = aliveMercs.reduce((sum, m) => sum + calculateMercWage(m), 0);
+        
+        if (newGold >= totalWages) {
+          // Can pay all wages
+          newGold -= totalWages;
+          wagesPaid = true;
+        } else {
+          // Can't pay - each merc has 1-15% chance to leave
+          const mercsThatLeft: string[] = [];
+          updatedRoster = updatedRoster.filter(merc => {
+            if (merc.isStarter || merc.isLocked || merc.isFavorite || merc.status === 'dead' || merc.status === 'questing') {
+              return true; // Protected mercs don't leave
+            }
+            const leaveChance = Math.random() * 14 + 1; // 1-15%
+            const roll = Math.random() * 100;
+            if (roll < leaveChance) {
+              mercsThatLeft.push(merc.id);
+              return false;
+            }
+            return true;
+          });
+          // Spend whatever gold we have
+          newGold = 0;
+          wagesPaid = true;
+        }
+      }
 
       return {
         ...state,
+        gold: newGold,
         fatigueMultiplier: newFatigue,
         dailyDiscountUsed: dailyReset ? false : state.dailyDiscountUsed,
         lastDailyReset: dailyReset ? now : state.lastDailyReset,
+        lastWagePayment: wagesPaid ? now : state.lastWagePayment,
         marketState,
         marketStateEndTime,
         roster: updatedRoster,
+        favorites: state.favorites.filter(id => updatedRoster.some(m => m.id === id)),
         lastSaveTime: now,
       };
     }
@@ -789,6 +842,44 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'EXPAND_QUEST_SLOTS': {
+      // Cost increases: 500, 750, 1000, 1500, 2000...
+      const baseCost = 500;
+      const multiplier = 1 + (state.questSlotExpansions * 0.5);
+      const cost = Math.floor(baseCost * multiplier);
+      
+      if (state.gold < cost) return state;
+
+      return {
+        ...state,
+        gold: state.gold - cost,
+        questSlots: state.questSlots + 1,
+        questSlotExpansions: state.questSlotExpansions + 1,
+        stats: {
+          ...state.stats,
+          totalGoldSpent: state.stats.totalGoldSpent + cost,
+        },
+      };
+    }
+
+    case 'RENAME_MERCENARY': {
+      const merc = state.roster.find(m => m.id === action.mercenaryId);
+      if (!merc) return state;
+      const trimmedName = action.newName.trim();
+      if (!trimmedName || trimmedName.length > 30) return state;
+
+      return {
+        ...state,
+        roster: state.roster.map(m =>
+          m.id === action.mercenaryId ? { ...m, name: trimmedName } : m
+        ),
+      };
+    }
+
+    case 'RESET_GAME': {
+      return createInitialState();
+    }
+
     case 'LOAD_SAVE': {
       return action.state;
     }
@@ -804,9 +895,15 @@ interface GameContextValue {
   pullCost: number;
   canPull: boolean;
   calculateSellValue: (merc: Mercenary) => number;
+  calculateMercWage: (merc: Mercenary) => number;
+  getQuestSlotCost: () => number;
   getTimeUntilBaseCost: () => string;
   getMarketTimeRemaining: () => string;
   getPendingAchievements: () => typeof ACHIEVEMENTS;
+  manualSave: () => void;
+  exportSave: () => string;
+  importSave: (data: string) => boolean;
+  resetGame: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -892,15 +989,56 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     );
   }, [state]);
 
+  const getQuestSlotCost = useCallback(() => {
+    const baseCost = 500;
+    const multiplier = 1 + (state.questSlotExpansions * 0.5);
+    return Math.floor(baseCost * multiplier);
+  }, [state.questSlotExpansions]);
+
+  const manualSave = useCallback(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [state]);
+
+  const exportSave = useCallback(() => {
+    const saveJson = JSON.stringify(state);
+    return btoa(saveJson);
+  }, [state]);
+
+  const importSave = useCallback((data: string): boolean => {
+    try {
+      const decoded = atob(data);
+      const parsed = JSON.parse(decoded);
+      if (parsed && typeof parsed.gold === 'number' && Array.isArray(parsed.roster)) {
+        dispatch({ type: 'LOAD_SAVE', state: parsed });
+        localStorage.setItem(STORAGE_KEY, decoded);
+        return true;
+      }
+    } catch (e) {
+      console.error('Failed to import save:', e);
+    }
+    return false;
+  }, []);
+
+  const resetGame = useCallback(() => {
+    dispatch({ type: 'RESET_GAME' });
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
   const value: GameContextValue = {
     state,
     dispatch,
     pullCost,
     canPull,
     calculateSellValue,
+    calculateMercWage,
+    getQuestSlotCost,
     getTimeUntilBaseCost,
     getMarketTimeRemaining,
     getPendingAchievements,
+    manualSave,
+    exportSave,
+    importSave,
+    resetGame,
   };
 
   return (

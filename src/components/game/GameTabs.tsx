@@ -4,15 +4,17 @@ import { MarketView } from './MarketView';
 import { BarracksView } from './BarracksView';
 import { QuestHallView } from './QuestHallView';
 import { StatsView } from './StatsView';
-import { Store, Users, Swords, BarChart3, Gift } from 'lucide-react';
+import { SettingsView } from './SettingsView';
+import { Store, Users, Swords, BarChart3, Settings } from 'lucide-react';
 
-type TabId = 'market' | 'barracks' | 'quests' | 'stats';
+type TabId = 'market' | 'barracks' | 'quests' | 'stats' | 'settings';
 
 const TABS: { id: TabId; label: string; icon: typeof Store }[] = [
   { id: 'market', label: 'Market', icon: Store },
   { id: 'barracks', label: 'Barracks', icon: Users },
   { id: 'quests', label: 'Quest Hall', icon: Swords },
   { id: 'stats', label: 'Statistics', icon: BarChart3 },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export function GameTabs() {
@@ -76,6 +78,7 @@ export function GameTabs() {
           {activeTab === 'barracks' && <BarracksView />}
           {activeTab === 'quests' && <QuestHallView />}
           {activeTab === 'stats' && <StatsView />}
+          {activeTab === 'settings' && <SettingsView />}
         </div>
       </main>
     </div>

@@ -100,6 +100,7 @@ export interface GameState {
   roster: Mercenary[];
   rosterSlots: number;
   questSlots: number;
+  questSlotExpansions: number; // Track how many times expanded
   activeQuests: Quest[];
   fatigueMultiplier: number;
   lastPullTime: number | null;
@@ -116,6 +117,7 @@ export interface GameState {
   newPlayerPhase: NewPlayerPhase;
   dailyDiscountUsed: boolean;
   lastDailyReset: number;
+  lastWagePayment: number;
   emergencyLiquidationAvailable: boolean;
   lastEmergencyUse: number | null;
   bankruptcyResetUsed: boolean;

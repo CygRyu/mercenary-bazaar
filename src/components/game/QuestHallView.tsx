@@ -3,14 +3,21 @@ import { useGame } from '@/context/GameContext';
 import { MercenaryCard } from './MercenaryCard';
 import { QuestModal } from './QuestModal';
 import { Mercenary } from '@/types/game';
-import { Swords, Clock, Coins, CheckCircle, AlertTriangle, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Swords, Clock, Coins, CheckCircle, AlertTriangle, Users, Plus } from 'lucide-react';
 
 export function QuestHallView() {
-  const { state } = useGame();
+  const { state, dispatch, getQuestSlotCost, calculateMercWage } = useGame();
   const [questTarget, setQuestTarget] = useState<Mercenary | null>(null);
 
   const availableMercs = state.roster.filter(m => m.status === 'available');
   const activeQuests = state.activeQuests;
+  const questSlotCost = getQuestSlotCost();
+  const canExpandSlots = state.gold >= questSlotCost;
+
+  // Calculate total daily wages
+  const aliveMercs = state.roster.filter(m => m.status !== 'dead');
+  const totalDailyWages = aliveMercs.reduce((sum, m) => sum + calculateMercWage(m), 0);
 
   const formatTimeRemaining = (endTime: number) => {
     const remaining = endTime - Date.now();
@@ -31,12 +38,23 @@ export function QuestHallView() {
     <div className="space-y-8 fade-in">
       {/* Active Quests */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Swords className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold text-lg">Active Quests</h2>
-          <span className="text-muted-foreground font-mono">
-            ({activeQuests.length}/{state.questSlots} slots)
-          </span>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Swords className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold text-lg">Active Quests</h2>
+            <span className="text-muted-foreground font-mono">
+              ({activeQuests.length}/{state.questSlots} slots)
+            </span>
+          </div>
+          <Button
+            onClick={() => dispatch({ type: 'EXPAND_QUEST_SLOTS' })}
+            disabled={!canExpandSlots}
+            variant="secondary"
+            size="sm"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            +1 Slot ({questSlotCost}g)
+          </Button>
         </div>
 
         {activeQuests.length === 0 ? (
@@ -120,7 +138,7 @@ export function QuestHallView() {
       {/* Quest Summary */}
       <section className="bg-card border border-border rounded-lg p-4">
         <h3 className="font-medium mb-3">Quest Statistics</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
           <div>
             <p className="text-muted-foreground">Total Completed</p>
             <p className="font-mono text-lg">{state.totalQuestsCompleted}</p>
@@ -140,6 +158,10 @@ export function QuestHallView() {
                 ? Math.round(state.totalQuestGold / state.totalQuestTime)
                 : 0}g
             </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Daily Wages</p>
+            <p className="font-mono text-lg text-status-info">{totalDailyWages}g</p>
           </div>
         </div>
       </section>
