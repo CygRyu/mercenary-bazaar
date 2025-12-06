@@ -3,9 +3,11 @@ import { useGame } from '@/context/GameContext';
 import { Mercenary, Rarity } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { TraitBadge } from './TraitBadge';
 import { 
   Lock, Unlock, Star, Swords, Coins, Heart, 
-  Clock, AlertTriangle, Skull, ChevronDown, ChevronUp, Pencil, Check, X
+  Clock, AlertTriangle, Skull, ChevronDown, ChevronUp, Pencil, Check, X, Sparkles
 } from 'lucide-react';
 
 interface MercenaryCardProps {
@@ -83,6 +85,10 @@ export function MercenaryCard({ mercenary, compact = false, showActions = true, 
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   };
+
+  // XP progress calculation
+  const xpNeeded = mercenary.level * 100;
+  const xpProgress = Math.min(100, (mercenary.experience / xpNeeded) * 100);
 
   const daysOwned = Math.floor((Date.now() - mercenary.career.hireDate) / (24 * 60 * 60 * 1000));
   const successRate = mercenary.career.questsAttempted > 0 
@@ -174,6 +180,20 @@ export function MercenaryCard({ mercenary, compact = false, showActions = true, 
           </div>
         </div>
 
+        {/* XP Bar */}
+        {mercenary.level < 30 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                XP
+              </span>
+              <span className="font-mono text-muted-foreground">{mercenary.experience}/{xpNeeded}</span>
+            </div>
+            <Progress value={xpProgress} className="h-1.5" />
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
@@ -214,20 +234,10 @@ export function MercenaryCard({ mercenary, compact = false, showActions = true, 
           </div>
         </div>
 
-        {/* Traits */}
+        {/* Traits with tooltips */}
         <div className="flex flex-wrap gap-1.5">
           {mercenary.traits.map((trait, i) => (
-            <span 
-              key={i}
-              className={`text-xs px-2 py-0.5 rounded-full ${
-                trait.isPositive 
-                  ? 'bg-status-success/20 text-status-success' 
-                  : 'bg-destructive/20 text-destructive'
-              }`}
-              title={trait.description}
-            >
-              {trait.name}
-            </span>
+            <TraitBadge key={i} trait={trait} />
           ))}
         </div>
 

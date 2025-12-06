@@ -1,16 +1,11 @@
-import { useState } from 'react';
 import { useGame } from '@/context/GameContext';
-import { MercenaryCard } from './MercenaryCard';
-import { QuestModal } from './QuestModal';
-import { Mercenary } from '@/types/game';
 import { Button } from '@/components/ui/button';
-import { Swords, Clock, Coins, CheckCircle, AlertTriangle, Users, Plus } from 'lucide-react';
+import { Swords, Clock, Coins, CheckCircle, AlertTriangle, Plus, Zap } from 'lucide-react';
+import { QuestBoard } from './QuestBoard';
 
 export function QuestHallView() {
   const { state, dispatch, getQuestSlotCost, calculateMercWage } = useGame();
-  const [questTarget, setQuestTarget] = useState<Mercenary | null>(null);
 
-  const availableMercs = state.roster.filter(m => m.status === 'available');
   const activeQuests = state.activeQuests;
   const questSlotCost = getQuestSlotCost();
   const canExpandSlots = state.gold >= questSlotCost;
@@ -61,7 +56,7 @@ export function QuestHallView() {
           <div className="bg-card border border-border rounded-lg p-8 text-center text-muted-foreground">
             <Swords className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>No active quests</p>
-            <p className="text-sm mt-1">Send mercenaries on quests to earn gold!</p>
+            <p className="text-sm mt-1">Pick a quest from below to send your mercenaries!</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -71,6 +66,9 @@ export function QuestHallView() {
               
               const progress = getProgress(quest.startTime, quest.endTime);
               const isComplete = Date.now() >= quest.endTime;
+              const originalDuration = quest.duration;
+              const effectiveDuration = (quest.endTime - quest.startTime) / (60 * 60 * 1000);
+              const hasSpedup = effectiveDuration < originalDuration;
 
               return (
                 <div 
@@ -102,8 +100,9 @@ export function QuestHallView() {
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Duration: {quest.duration}h
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      Duration: {effectiveDuration.toFixed(1)}h
+                      {hasSpedup && <Zap className="w-3 h-3 text-status-success" />}
                     </span>
                     <span className="font-mono text-primary">
                       <Coins className="w-4 h-4 inline mr-1" />
@@ -166,40 +165,10 @@ export function QuestHallView() {
         </div>
       </section>
 
-      {/* Available Mercenaries */}
+      {/* Quest Board */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-muted-foreground" />
-          <h2 className="font-semibold text-lg">Available for Quests</h2>
-          <span className="text-muted-foreground font-mono">({availableMercs.length})</span>
-        </div>
-
-        {availableMercs.length === 0 ? (
-          <div className="bg-card border border-border rounded-lg p-8 text-center text-muted-foreground">
-            <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No mercenaries available</p>
-            <p className="text-sm mt-1">All mercenaries are busy or recovering</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {availableMercs.map(merc => (
-              <MercenaryCard
-                key={merc.id}
-                mercenary={merc}
-                onSendQuest={() => setQuestTarget(merc)}
-              />
-            ))}
-          </div>
-        )}
+        <QuestBoard />
       </section>
-
-      {/* Quest Modal */}
-      {questTarget && (
-        <QuestModal
-          mercenary={questTarget}
-          onClose={() => setQuestTarget(null)}
-        />
-      )}
     </div>
   );
 }
