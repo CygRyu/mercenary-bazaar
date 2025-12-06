@@ -9,12 +9,19 @@ export type MercenaryStatus = 'available' | 'questing' | 'injured' | 'resting' |
 export interface Trait {
   name: string;
   description: string;
+  effectDescription?: string;
   isPositive: boolean;
   statModifier?: {
     stat: 'efficiency' | 'resilience' | 'skill';
     value: number;
   };
   valueModifier?: number; // percentage
+  // Gameplay effect modifiers (percentages)
+  questSpeedModifier?: number; // negative = faster
+  injuryModifier?: number; // negative = safer
+  deathModifier?: number; // negative = safer
+  goldModifier?: number; // positive = more gold
+  xpModifier?: number; // positive = more xp
 }
 
 export interface MercenaryCareer {

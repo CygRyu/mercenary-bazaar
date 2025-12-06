@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useGame } from '@/context/GameContext';
 import { MercenaryCard } from './MercenaryCard';
-import { QuestModal } from './QuestModal';
 import { Button } from '@/components/ui/button';
-import { Mercenary, Rarity } from '@/types/game';
-import { AlertTriangle, Users, Coins, Plus, Filter } from 'lucide-react';
+import { Rarity } from '@/types/game';
+import { AlertTriangle, Users, Plus, Filter } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -28,7 +27,6 @@ export function BarracksView() {
   const { state, dispatch, calculateSellValue } = useGame();
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
-  const [questTarget, setQuestTarget] = useState<Mercenary | null>(null);
   const [showLiquidationConfirm, setShowLiquidationConfirm] = useState(false);
   const [liquidationInput, setLiquidationInput] = useState('');
 
@@ -209,18 +207,9 @@ export function BarracksView() {
             <MercenaryCard
               key={merc.id}
               mercenary={merc}
-              onSendQuest={() => setQuestTarget(merc)}
             />
           ))}
         </div>
-      )}
-
-      {/* Quest Modal */}
-      {questTarget && (
-        <QuestModal
-          mercenary={questTarget}
-          onClose={() => setQuestTarget(null)}
-        />
       )}
     </div>
   );

@@ -112,7 +112,13 @@ type GameAction =
   | { type: 'SELL_MERCENARY'; mercenaryId: string }
   | { type: 'TOGGLE_LOCK'; mercenaryId: string }
   | { type: 'TOGGLE_FAVORITE'; mercenaryId: string }
-  | { type: 'SEND_QUEST'; mercenaryId: string; duration: number }
+  | { type: 'SEND_QUEST'; mercenaryId: string; duration: number; questDetails?: {
+      effectiveDuration: number;
+      minGold: number;
+      maxGold: number;
+      injuryChance: number;
+      deathChance: number;
+    }}
   | { type: 'COMPLETE_QUEST'; questId: string }
   | { type: 'UPDATE_TIMERS' }
   | { type: 'EMERGENCY_LIQUIDATION' }
@@ -559,15 +565,31 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.activeQuests.length >= state.questSlots) return state;
 
       const now = Date.now();
-      const risks = calculateQuestRisks(merc);
-      const rewards = calculateQuestReward(action.duration, merc.isFavorite);
+      
+      // Use provided quest details or calculate defaults
+      let risks: { injury: number; death: number };
+      let rewards: { base: number; min: number; max: number };
+      let effectiveDuration = action.duration;
+      
+      if (action.questDetails) {
+        risks = { injury: action.questDetails.injuryChance, death: action.questDetails.deathChance };
+        rewards = { 
+          base: Math.floor((action.questDetails.minGold + action.questDetails.maxGold) / 2),
+          min: action.questDetails.minGold, 
+          max: action.questDetails.maxGold 
+        };
+        effectiveDuration = action.questDetails.effectiveDuration;
+      } else {
+        risks = calculateQuestRisks(merc);
+        rewards = calculateQuestReward(action.duration, merc.isFavorite);
+      }
 
       const quest: Quest = {
         id: `quest-${now}-${Math.random().toString(36).substr(2, 9)}`,
         mercenaryId: merc.id,
         startTime: now,
         duration: action.duration,
-        endTime: now + action.duration * 60 * 60 * 1000,
+        endTime: now + effectiveDuration * 60 * 60 * 1000,
         baseGold: rewards.base,
         minGold: rewards.min,
         maxGold: rewards.max,
